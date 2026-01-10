@@ -1,0 +1,55 @@
+html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: sans-serif;
+}
+
+#toolbar {
+    border-bottom: 1px solid #eee;
+    padding:8px;
+}
+
+#reset {
+    float:right;
+}
+.hidden {
+    display: none !important;
+}
+
+button {
+    cursor: pointer;
+    font-size: inherit;
+    font-family: inherit;
+}
+
+#card {
+    padding: 10px;
+    display: table;
+    margin: 0 auto;
+}
+
+.line {
+    border-bottom: 1px solid #eee;
+    padding:8px;
+}
+
+#popups {
+    position: fixed;
+    padding: 16px;
+    inset: 16px;
+    bottom: auto;
+    pointer-events: none;
+}
+
+.popup {
+    pointer-events: auto;
+    padding: 8px;
+    color: #fff;
+    background: darkslateblue;
+    text-align: center;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-bottom: 16px;
+}
