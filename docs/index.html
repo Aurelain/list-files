@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang='en'>
+    <head>
+        <meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        <link rel="icon" type="image/svg+xml" href="favicon.svg">
+        <title>list-files</title>
+        <style>
+            html, body {
+                margin: 0;
+                width: 100%;
+                height: 100%;
+                overflow: hidden;
+                font-family: sans-serif;
+            }
+
+            #card {
+                padding: 10px;
+                display: table;
+                margin: 0 auto;
+            }
+        </style>
+        <script src='main.js'></script>
+    </head>
+    <body>
+        <div id='card'>
+            <h1>List files from your local drive</h1>
+            Feed directories (or files) using any of the following methods:
+            <ul>
+                <li>Drag-and-drop from your file explorer</li>
+                <li>Browse for items:
+                    <input id='input' type='file' accept='application/zip'/>
+                </li>
+                <li>Paste strings of absolute paths anywhere inside</li>
+                <li>Append "?x" to the address-bar, where "x" can be a string of absolute paths</li>
+                <li>Use `postMessage` to send a `payload` (string of absolute paths) to this page</li>
+            </ul>
+        </div>
+    </body>
+</html>
