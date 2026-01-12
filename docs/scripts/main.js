@@ -117,6 +117,16 @@ const setup = async () => {
         originalList.length = 0;
         document.getElementById('flat').innerHTML = '';
     });
+    document.getElementById('allow-upstream').addEventListener('click', async () => {
+        let dirHandle;
+        try {
+            dirHandle = await window.showDirectoryPicker();
+        } catch (e) {}
+        if (dirHandle) {
+            await addDirHandle(dirHandle);
+            await renderTable();
+        }
+    });
     await setupPermissions();
 };
 
@@ -189,38 +199,48 @@ const add = async (input) => {
         added = input;
     }
     originalList.push(...added);
-    const resolvedList = await resolveList(originalList);
-    renderTable(resolvedList);
+    await renderTable();
 };
 
 /**
  *
  */
-const renderTable = (items) => {
-    document.getElementById('card').classList.add('hidden');
-    document.getElementById('toolbar').classList.remove('hidden');
+const renderTable = async () => {
+    // Prepare page:
+    show('card', 0);
+    show('toolbar', 1);
     const flat = document.getElementById('flat');
-    for (const {file, path} of items) {
-        const line = document.createElement('div');
-        line.classList.add('line');
-        line.innerHTML = path;
-        if (file) {
-            if (path.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
-                const img = convertFileToImgElement(file);
-                line.appendChild(img);
+    flat.innerHTML = '';
+    const table = document.createElement('table');
+    const tableBody = document.createElement('tbody');
+    table.appendChild(tableBody);
+
+
+    const groups = await resolveList(originalList);
+    for (const group of groups) {
+        console.log('group:', group);
+        const [first] = group;
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        tr.appendChild(td);
+        td.innerHTML = first.path;
+        for (const {file, path} of group) {
+            if (file) {
+                if (path.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
+                    const img = convertFileToImgElement(file);
+                    td.appendChild(img);
+                }
+            } else {
+                const img = document.createElement('img');
+                img.classList.add('unresolved');
+                td.appendChild(img);
             }
-        } else {
-            const pick = document.createElement('button');
-            pick.classList.add('pick');
-            pick.innerHTML = 'Allow upstream';
-            pick.addEventListener('click', onPickClick);
-            line.appendChild(pick);
+            tableBody.appendChild(tr);
         }
-        flat.appendChild(line);
     }
+
+    flat.appendChild(table);
 };
-
-
 
 /**
  *
@@ -231,23 +251,6 @@ const convertFileToImgElement = (file) => {
     img.src = url;
     img.onload = () => URL.revokeObjectURL(url); // clean up the object URL once the image is loaded
     return img;
-}
-
-/**
- *
- */
-const onPickClick = async () => {
-    let dirHandle;
-    try {
-        dirHandle = await window.showDirectoryPicker();
-    } catch (e) {
-        // The user canceled
-        return;
-    }
-    console.log('dirHandle:', dirHandle);
-    await addDirHandle(dirHandle);
-    const dirHandles = await getDirHandles();
-    console.log('dirHandles:', dirHandles);
 }
 
 /**

@@ -3,17 +3,34 @@
  */
 const resolveList = async (list) => {
     const dirHandles = await getDirHandles();
-    const output = [];
+    const simple = [];
     for (const item of list) {
-        console.log('item:', item);
         if (typeof item === 'string') {
-            output.push(await findFile(item, dirHandles));
+            simple.push(await findFile(item, dirHandles));
         } else {
-            output.push({
+            simple.push({
                 file: item,
                 path: item.name,
             });
         }
     }
+    return groupList(simple);
+}
+
+/**
+ *
+ */
+const groupList = (list) => {
+    const map = {};
+    const output = [];
+    for (const item of list) {
+        const stem = item.path.split('/').pop().replace(/\.[^.]*$/, '');
+        if (!map[stem]) {
+            map[stem] = [];
+            output.push(map[stem]);
+        }
+        map[stem].push(item);
+    }
     return output;
+
 }

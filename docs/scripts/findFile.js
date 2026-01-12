@@ -29,14 +29,11 @@ async function findInDirectory(dirHandle, pathFragment, currentPath = '') {
     const entries = await getFiles(dirHandle);
     for (const [name, handle] of entries) {
         const fullPath = currentPath ? `${currentPath}/${name}` : name;
-        if (fullPath.endsWith(pathFragment)) {
-            const indexBefore = fullPath.length - pathFragment.length - 1;
-            if (indexBefore === -1 || fullPath.charAt(indexBefore) === '/') {
-                return {
-                    file: await handle.getFile(),
-                    path: fullPath,
-                };
-            }
+        if (fullPath.includes(pathFragment)) {
+            return {
+                file: await handle.getFile(),
+                path: fullPath,
+            };
         }
         if (handle.kind === 'directory') {
             const found = await findInDirectory(handle,pathFragment,fullPath);
