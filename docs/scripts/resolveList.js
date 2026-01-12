@@ -6,8 +6,9 @@ const resolveList = async (list) => {
     const simple = [];
     for (const item of list) {
         if (typeof item === 'string') {
-            simple.push(await findFile(item, dirHandles));
+            simple.push(...await findFiles(item, dirHandles));
         } else {
+            // TODO: handle dirs
             simple.push({
                 file: item,
                 path: item.name,

@@ -215,32 +215,42 @@ const renderTable = async () => {
     const tableBody = document.createElement('tbody');
     table.appendChild(tableBody);
 
-
     const groups = await resolveList(originalList);
     for (const group of groups) {
-        console.log('group:', group);
         const [first] = group;
         const tr = document.createElement('tr');
         const td = document.createElement('td');
-        tr.appendChild(td);
         td.innerHTML = first.path;
-        for (const {file, path} of group) {
-            if (file) {
-                if (path.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
-                    const img = convertFileToImgElement(file);
-                    td.appendChild(img);
-                }
-            } else {
-                const img = document.createElement('img');
-                img.classList.add('unresolved');
-                td.appendChild(img);
-            }
-            tableBody.appendChild(tr);
+        if (first.path.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
+            const div = document.createElement('div');
+            div.append(...previewGroup(group));
+            td.appendChild(div);
         }
+        tr.appendChild(td);
+        tableBody.appendChild(tr);
     }
 
     flat.appendChild(table);
 };
+
+/**
+ *
+ */
+const previewGroup = (group) => {
+    const output = [];
+    for (const {file} of group) {
+        let img;
+        if (file) {
+            img = convertFileToImgElement(file);
+        } else {
+            img = document.createElement('img');
+            img.classList.add('unresolved');
+        }
+        output.push(img);
+    }
+    console.log('output:', output);
+    return output;
+}
 
 /**
  *

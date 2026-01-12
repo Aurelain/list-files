@@ -7,7 +7,6 @@ img {
     min-width: 32px;
     max-height:256px;
     max-width: 256px;
-    display: block;
 }
 
 img.unresolved {
@@ -64,4 +63,5 @@ tr {
     border-radius: 8px;
     cursor: pointer;
     margin-bottom: 16px;
+    border: 1px solid white;
 }

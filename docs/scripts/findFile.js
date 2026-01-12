@@ -2,20 +2,20 @@
  *
  * @param pathFragment
  * @param dirHandles
- * @returns {Promise<*|File|null>}
  */
-async function findFile(pathFragment, dirHandles) {
+async function findFiles(pathFragment, dirHandles) {
     pathFragment = pathFragment.replace(/^\//, '');
+    const output = [];
     for (const dirHandle of dirHandles) {
-        const result = await findInDirectory(dirHandle, pathFragment);
-        if (result) {
-            return result;
-        }
+        output.push(...await findInDirectory(dirHandle, pathFragment));
     }
-    return {
-        file: null,
-        path: pathFragment,
-    };
+    if (!output.length) {
+        output.push({
+            file: null,
+            path: pathFragment,
+        });
+    }
+    return output;
 }
 
 /**
@@ -23,32 +23,31 @@ async function findFile(pathFragment, dirHandles) {
  * @param dirHandle
  * @param pathFragment
  * @param currentPath
- * @returns {Promise<*|void|File|null>}
  */
 async function findInDirectory(dirHandle, pathFragment, currentPath = '') {
+    const output = [];
     const entries = await getFiles(dirHandle);
     for (const [name, handle] of entries) {
         const fullPath = currentPath ? `${currentPath}/${name}` : name;
         if (fullPath.includes(pathFragment)) {
-            return {
+            output.push({
                 file: await handle.getFile(),
                 path: fullPath,
-            };
-        }
-        if (handle.kind === 'directory') {
-            const found = await findInDirectory(handle,pathFragment,fullPath);
-            if (found) {
-                return found;
-            }
+            });
         }
     }
-    return null;
+    for (const [name, handle] of entries) {
+        const fullPath = currentPath ? `${currentPath}/${name}` : name;
+        if (handle.kind === 'directory') {
+            output.push(...await findInDirectory(handle,pathFragment,fullPath));
+        }
+    }
+    return output;
 }
 
 /**
  *
  * @param dirHandle
- * @returns {Promise<*[]>}
  */
 async function getFiles(dirHandle) {
     const entries = [];
