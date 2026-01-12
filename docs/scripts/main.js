@@ -1,5 +1,4 @@
-const DB_NAME = 'list-files';
-const STORE_NAME = 'handles';
+const HANDLES = 'handles';
 const originalList = [];
 const resolvedList = [];
 
@@ -12,7 +11,7 @@ const resolvedList = [];
  * 4. Address-bar
  * 5. PostMessage
  */
-const main = () => {
+const main = async () => {
     // Method 1 (Drag-and-Drop)
     window.addEventListener('dragover', (event) => event.preventDefault());
     window.addEventListener('drop', onWindowDrop);
@@ -40,7 +39,7 @@ const main = () => {
     // Announce to anyone trying to use Method 5 (PostMessage) that we are ready to provide them with service:
     window.top !== window.self && window.parent.postMessage('READY', '*');
 
-    setup();
+    await setup();
 };
 
 /**
@@ -111,13 +110,65 @@ const onWindowMessage = (event) => {
 /**
  *
  */
-const setup = () => {
+const setup = async () => {
     document.getElementById('reset').addEventListener('click', async () => {
-        document.getElementById('card').classList.remove('hidden');
-        document.getElementById('toolbar').classList.add('hidden');
+        show('card', 1);
+        show('toolbar', 0);
         originalList.length = 0;
         document.getElementById('flat').innerHTML = '';
     });
+    await setupPermissions();
+};
+
+/**
+ *
+ */
+const setupPermissions = async () => {
+    const dirHandles = await getDirHandles();
+    for (const handle of dirHandles) {
+        const isValid = await validateDirHandle(handle);
+        if (!isValid) {
+            show('permissions', 1);
+            document.getElementById('allow').addEventListener('click', async () => {
+                for (const handle of dirHandles) {
+                    if (!await verifyPermission(handle)) {
+                        return;
+                    }
+                }
+                window.location.reload();
+            });
+            document.getElementById('cancel').addEventListener('click', async () => {
+                await deleteDatabase();
+                show('permissions', 0);
+            });
+            return;
+        }
+    }
+};
+
+/**
+ * Attempt minimal access
+ */
+const validateDirHandle = async (dirHandle) => {
+    try {
+        // noinspection LoopStatementThatDoesntLoopJS
+        for await (const _ of dirHandle.entries()) {
+            break; // success: directory is readable
+        }
+    } catch (err) {
+        return false;
+    }
+    return true;
+};
+
+/**
+ *
+ */
+const verifyPermission = async (dirHandle) => {
+    if ((await dirHandle.queryPermission()) === 'granted') {
+        return true;
+    }
+    return await dirHandle.requestPermission() === 'granted';
 };
 
 /**
@@ -149,16 +200,15 @@ const renderTable = (items) => {
     document.getElementById('card').classList.add('hidden');
     document.getElementById('toolbar').classList.remove('hidden');
     const flat = document.getElementById('flat');
-    for (const item of items) {
+    for (const {file, path} of items) {
         const line = document.createElement('div');
         line.classList.add('line');
-        line.innerHTML = item;
-        if (typeof item !== 'string') {
-            if (item.name.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
-                const img = convertFileToImgElement(item);
+        line.innerHTML = path;
+        if (file) {
+            if (path.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
+                const img = convertFileToImgElement(file);
                 line.appendChild(img);
             }
-            console.log(item);
         } else {
             const pick = document.createElement('button');
             pick.classList.add('pick');
@@ -206,6 +256,30 @@ const onPickClick = async () => {
 const parsePaths = (input) => {
     const invalidChars = /[<>:"|?*&\r\n\t]+/;
     return input.split(invalidChars).filter(part => part.length > 0);
+};
+
+/**
+ *
+ */
+const getDirHandles = async () => {
+    return await read(HANDLES) || [];
+};
+
+/**
+ *
+ */
+const addDirHandle = async (dirHandle) => {
+    const handles = await getDirHandles();
+    handles.push(dirHandle);
+    await write(HANDLES, handles);
+};
+
+/**
+ *
+ */
+const show = (id, force) => {
+    const flag = force === undefined? false : !Boolean(force);
+    document.getElementById(id).classList.toggle('hidden', flag);
 };
 
 /**

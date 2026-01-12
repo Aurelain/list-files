@@ -12,7 +12,10 @@ async function findFile(pathFragment, dirHandles) {
             return result;
         }
     }
-    return null;
+    return {
+        file: null,
+        path: pathFragment,
+    };
 }
 
 /**
@@ -23,14 +26,15 @@ async function findFile(pathFragment, dirHandles) {
  * @returns {Promise<*|void|File|null>}
  */
 async function findInDirectory(dirHandle, pathFragment, currentPath = '') {
-    for await (const [name, handle] of dirHandle.entries()) {
+    const entries = await getFiles(dirHandle);
+    for (const [name, handle] of entries) {
         const fullPath = currentPath ? `${currentPath}/${name}` : name;
         if (fullPath.endsWith(pathFragment)) {
             const indexBefore = fullPath.length - pathFragment.length - 1;
             if (indexBefore === -1 || fullPath.charAt(indexBefore) === '/') {
                 return {
                     file: await handle.getFile(),
-                    fullPath,
+                    path: fullPath,
                 };
             }
         }
@@ -42,4 +46,19 @@ async function findInDirectory(dirHandle, pathFragment, currentPath = '') {
         }
     }
     return null;
+}
+
+/**
+ *
+ * @param dirHandle
+ * @returns {Promise<*[]>}
+ */
+async function getFiles(dirHandle) {
+    const entries = [];
+    try {
+        for await (const entry of dirHandle.entries()) {
+            entries.push(entry);
+        }
+    } catch (error) {}
+    return entries;
 }

@@ -1,16 +1,13 @@
+const DB_NAME = window.location.href.replace(/[^/]*$/, '');
+const STORE_NAME = 'store';
+
 /**
  *
  */
 const openDB = async (version) => {
     return new Promise((resolve, reject) => {
         const req = indexedDB.open(DB_NAME, version);
-        req.onupgradeneeded = () => {
-            const db = req.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                db.createObjectStore(STORE_NAME, { autoIncrement: true });
-            }
-        };
-
+        req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME);
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
     });
@@ -19,39 +16,57 @@ const openDB = async (version) => {
 /**
  *
  */
-const addDirHandle = async (dirHandle) => {
-    let db = await openDB();
-
-    // If the store does not exist, upgrade the DB
-    if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const newVersion = db.version + 1;
-        db.close();
-        db = await openDB(newVersion);
-    }
-
+const deleteDatabase = () => {
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, "readwrite");
-        tx.objectStore(STORE_NAME).add(dirHandle);
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+        req.onblocked = () => console.warn('Database deletion blocked.');
+    });
+};
 
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error);
+
+/**
+ *
+ */
+const read = async (key) => {
+    const dbs = await indexedDB.databases();
+    if (!dbs.find(db => db.name === DB_NAME)) {
+        return;
+    }
+    const db = await openDB();
+    if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.close();
+        return;
+    }
+    return new Promise((resolve, reject) => {
+        const request = db.transaction(STORE_NAME).objectStore(STORE_NAME).get(key);
+        request.onsuccess = () => {
+            resolve(request.result);
+            db.close();
+        }
+        request.onerror = () => {
+            reject(request.error);
+            db.close();
+        }
     });
 };
 
 /**
  *
  */
-const getDirHandles = async () => {
+const write = async (key, value) => {
     const db = await openDB();
-    if (!db.objectStoreNames.contains(STORE_NAME)) {
-        console.warn('No store found!');
-        return null;
-    }
     return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(value, key);
+        tx.onsuccess = () => {
+            resolve();
+            db.close();
+        }
+        tx.onerror = () => {
+            reject(tx.error);
+            db.close();
+        }
     });
 };
