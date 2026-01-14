@@ -6,7 +6,8 @@ const resolveList = async (list) => {
     const simple = [];
     for (const item of list) {
         if (typeof item === 'string') {
-            simple.push(...await findFiles(item, dirHandles));
+            const files = await findFiles(item, dirHandles);
+            simple.push(...files);
         } else {
             // TODO: handle dirs
             simple.push({
@@ -15,7 +16,19 @@ const resolveList = async (list) => {
             });
         }
     }
+    simple.sort(compareFiles);
     return groupList(simple);
+}
+
+/**
+ *
+ */
+const compareFiles = (a, b) => {
+    if (a.path < b.path) {
+        return -1;
+    } else {
+        return (a.path > b.path)? 1 : 0;
+    }
 }
 
 /**

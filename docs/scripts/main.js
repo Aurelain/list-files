@@ -112,7 +112,7 @@ const onWindowMessage = (event) => {
  */
 const setup = async () => {
     document.getElementById('reset').addEventListener('click', async () => {
-        show('card', 1);
+        show('tutorial', 1);
         show('toolbar', 0);
         originalList.length = 0;
         document.getElementById('flat').innerHTML = '';
@@ -124,51 +124,20 @@ const setup = async () => {
         } catch (e) {}
         if (dirHandle) {
             await addDirHandle(dirHandle);
-            await renderTable();
         }
+        await renderTable();
     });
-    await setupPermissions();
-};
-
-/**
- *
- */
-const setupPermissions = async () => {
-    const dirHandles = await getDirHandles();
-    for (const handle of dirHandles) {
-        const isValid = await validateDirHandle(handle);
-        if (!isValid) {
-            show('permissions', 1);
-            document.getElementById('allow').addEventListener('click', async () => {
-                for (const handle of dirHandles) {
-                    if (!await verifyPermission(handle)) {
-                        return;
-                    }
-                }
-                window.location.reload();
-            });
-            document.getElementById('cancel').addEventListener('click', async () => {
-                await deleteDatabase();
-                show('permissions', 0);
-            });
-            return;
+    document.getElementById('refresh-upstream').addEventListener('click', async () => {
+        const dirHandles = await getDirHandles();
+        for (const handle of dirHandles) {
+            await verifyPermission(handle);
         }
-    }
-};
-
-/**
- * Attempt minimal access
- */
-const validateDirHandle = async (dirHandle) => {
-    try {
-        // noinspection LoopStatementThatDoesntLoopJS
-        for await (const _ of dirHandle.entries()) {
-            break; // success: directory is readable
-        }
-    } catch (err) {
-        return false;
-    }
-    return true;
+        await renderTable();
+    });
+    document.getElementById('clear-upstream').addEventListener('click', async () => {
+        await deleteDatabase();
+        await renderTable();
+    });
 };
 
 /**
@@ -207,7 +176,7 @@ const add = async (input) => {
  */
 const renderTable = async () => {
     // Prepare page:
-    show('card', 0);
+    show('tutorial', 0);
     show('toolbar', 1);
     const flat = document.getElementById('flat');
     flat.innerHTML = '';
@@ -248,7 +217,6 @@ const previewGroup = (group) => {
         }
         output.push(img);
     }
-    console.log('output:', output);
     return output;
 }
 

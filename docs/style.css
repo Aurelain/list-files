@@ -2,20 +2,18 @@ html, body {
     margin: 0;
     font-family: sans-serif;
 }
+
+h1 {
+    text-align: center;
+}
 img {
     min-height: 32px;
     min-width: 32px;
     max-height:256px;
     max-width: 256px;
 }
-
 img.unresolved {
     background:red;
-}
-
-#toolbar {
-    border-bottom: 1px solid #ccc;
-    padding:8px;
 }
 
 #reset {
@@ -26,21 +24,24 @@ img.unresolved {
 }
 
 button {
+    margin-left:2px;
     cursor: pointer;
     font-size: inherit;
     font-family: inherit;
 }
 
-#card {
+.card {
+    max-width: 900px;
     padding: 10px;
-    display: table;
     margin: 0 auto;
+    border-bottom: 1px solid #ccc;
 }
 
 table {
     width: 100%;
     border-collapse: collapse;
 }
+
 tr {
     border-bottom: 1px solid #ccc;
     padding:8px;

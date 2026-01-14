@@ -1,4 +1,4 @@
-const DB_NAME = window.location.href.replace(/[^/]*$/, '');
+const DB_NAME = window.location.pathname.replace(/[^/]*$/, '');
 const STORE_NAME = 'store';
 
 /**
@@ -19,7 +19,10 @@ const openDB = async (version) => {
 const deleteDatabase = () => {
     return new Promise((resolve, reject) => {
         const req = indexedDB.deleteDatabase(DB_NAME);
-        req.onsuccess = () => resolve();
+        req.onsuccess = () => {
+            resolve();
+            console.log('Database deleted successfully.');
+        }
         req.onerror = () => reject(req.error);
         req.onblocked = () => console.warn('Database deletion blocked.');
     });

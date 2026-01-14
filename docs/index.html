@@ -12,7 +12,7 @@
         <script src='scripts/resolveList.js'></script>
     </head>
     <body>
-        <div id='card'>
+        <div id='tutorial' class='card'>
             <h1>List files from your local drive</h1>
             Feed directories (or files) using any of the following methods:
             <ul>
@@ -27,18 +27,15 @@
                 <li>Use `postMessage` to send a `payload` (string of paths) to this page</li>
             </ul>
         </div>
-        <div id='toolbar' class='hidden'>
+        <div id='toolbar' class='card hidden'>
             <button class='add-dirs'>Add dirs</button>
             <button class='add-files'>Add files</button>
             <button id='allow-upstream'>Allow upstream</button>
+            <button id='refresh-upstream'>Refresh upstream</button>
+            <button id='clear-upstream'>Clear upstream</button>
             <button id='reset'>Reset</button>
             <input id='input-files' type='file' multiple hidden>
             <input id='input-dirs' type='file' webkitdirectory multiple hidden>
-        </div>
-        <div id='permissions' class='hidden'>
-            Permissions you granted in the past need to be refreshed.<br/>
-            <button id='allow'>Allow</button>
-            <button id='cancel'>Clear permissions</button>
         </div>
         <div id='popups'></div>
         <div id='flat'></div>
