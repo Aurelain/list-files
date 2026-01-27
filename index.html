@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang='en'>
+    <head>
+        <meta charset='UTF-8'>
+        <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+        <link rel='icon' type='image/svg+xml' href="data:image/svg+xml,
+            <svg xmlns='http://www.w3.org/2000/svg'><text y='24' font-size='24'>💼</text></svg>">
+        <title>manage-files</title>
+        <style>
+            html, body {
+                margin: 0;
+                font-family: sans-serif;
+            }
+
+            button {
+                user-select: none;
+                cursor: pointer;
+            }
+
+            button[disabled] {
+                cursor: default;
+            }
+
+            dialog {
+                border-width: thin;
+                padding: 24px;
+                min-width: 320px;
+            }
+
+            li {
+                margin-block: 4px;
+            }
+
+            .close {
+                position: absolute;
+                top: 0;
+                right: 0;
+                border: 0;
+                width: 32px;
+                height: 24px;
+                color: white;
+                background: #f008;
+            }
+
+            .close:hover {
+                background: #f00;
+            }
+
+            .close:active {
+                background: #000;
+            }
+
+            #toolbar {
+                position: fixed;
+                inset: 0;
+                bottom: auto;
+                background: silver;
+                padding: 4px;
+                border-bottom: solid 1px gray;
+            }
+
+            .modal-title {
+                margin-top: 0;
+            }
+
+            .modal-footer {
+                text-align: right;
+            }
+        </style>
+    </head>
+    <body>
+
+        <div id='toolbar'>
+            <button id='upstream-show'>Manage upstream</button>
+            <button id='upstream-renew-quick' disabled>Renew upstream (<span id='upstream-count'>0</span>)</button>
+            <!--            <button id='select-all' title='Ctrl+A'>Select all</button>-->
+            <!--            <button id='copy-to' title='Ctrl+D'>Duplicate</button>-->
+            <!--            <button id='move-to' disabled>Move</button>-->
+            <!--            <button id='delete-files' title='Ctrl+Del'>Delete</button>-->
+        </div>
+
+        <dialog id='upstream-modal'>
+            <h2 class='modal-title'>Upstream</h2>
+            <button class='close'>×</button>
+
+            <ul id='upstream-list'></ul>
+            <div class='modal-footer'>
+                <button id='upstream-add'>Add</button>
+                <button id='upstream-renew' disabled>Renew</button>
+            </div>
+        </dialog>
+
+        <script>
+            // =========================================================================================================
+            // D E C L A R A T I O N S
+            // =========================================================================================================
+            const DB_NAME = window.location.host || 'localhost';
+            const STORE_NAME = 'store';
+            const HANDLES = 'dirHandles';
+            const upstreamModal = query('#upstream-modal');
+            const upstreamList = query('#upstream-list');
+            const upstreamRenew = query('#upstream-renew');
+            const upstreamRenewQuick = query('#upstream-renew-quick');
+            const upstreamCount = query('#upstream-count');
+
+            // =========================================================================================================
+            // M A I N
+            // =========================================================================================================
+            /**
+             *
+             */
+            async function main() {
+                // Toolbar:
+                on('click', '#upstream-show', upstreamModal.showModal.bind(upstreamModal));
+
+                // Modals:
+                on('click', '.close', (e) => e.currentTarget.closest('dialog').close());
+
+                await populateUpstream();
+                on('click', '#upstream-add', onUpstreamAddClick);
+                on('click', upstreamRenew, onUpstreamRenewClick);
+                on('click', upstreamRenewQuick, onUpstreamRenewClick);
+                // upstreamModal.showModal();
+            }
+
+            main();
+
+            // =========================================================================================================
+            // General
+            // =========================================================================================================
+
+
+            // =========================================================================================================
+            // Upstream
+            // =========================================================================================================
+            /**
+             *
+             */
+            async function getHandles() {
+                return await readFromDb(HANDLES) || [];
+            }
+
+            /**
+             *
+             */
+            async function populateUpstream() {
+                const handles = await getHandles();
+                const markups = [];
+                let failed = 0;
+                for (const handle of handles) {
+                    const isGranted = await handle.queryPermission() === 'granted';
+                    failed += isGranted ? 0 : 1;
+                    const symbol = isGranted ? '✅️' : '';
+                    markups.push(`<li><button title='Click to remove'>${handle.name}</button>${symbol}</li>`);
+                }
+                upstreamList.innerHTML = markups.join('');
+                upstreamRenew.disabled = !failed;
+                upstreamRenewQuick.disabled = !failed;
+                upstreamCount.textContent = failed.toString();
+                on('click', '#upstream-list button', onUpstreamHandleClick);
+            }
+
+            /**
+             *
+             */
+            async function onUpstreamAddClick() {
+                let dirHandle;
+                try {
+                    dirHandle = await window.showDirectoryPicker({mode: 'readwrite'});
+                } catch (e) {
+                }
+                if (dirHandle) {
+                    const handles = await getHandles();
+                    handles.push(dirHandle);
+                    await writeToDb(HANDLES, handles);
+                    await populateUpstream();
+                }
+            }
+
+            /**
+             *
+             */
+            async function onUpstreamRenewClick() {
+                const handles = await getHandles();
+                for (const handle of handles) {
+                    await handle.requestPermission();
+                }
+                await populateUpstream();
+            }
+
+            /**
+             *
+             */
+            async function onUpstreamHandleClick(event) {
+                const allHandleButtons = Array.from(upstreamList.querySelectorAll('button'));
+                const index = allHandleButtons.indexOf(event.currentTarget);
+                const handles = await getHandles();
+                handles.splice(index, 1);
+                await writeToDb(HANDLES, handles);
+                await populateUpstream();
+            }
+
+            // =========================================================================================================
+            // IndexedDB
+            // =========================================================================================================
+            /**
+             *
+             */
+            function openDB() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(DB_NAME);
+                    req.onupgradeneeded = e => e.target.result.createObjectStore(STORE_NAME);
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = () => reject(req.error);
+                });
+            }
+
+            /**
+             *
+             */
+            function deleteDatabase() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.deleteDatabase(DB_NAME);
+                    req.onsuccess = () => {
+                        resolve();
+                        console.log('Database deleted successfully.');
+                    };
+                    req.onerror = () => reject(req.error);
+                    req.onblocked = () => console.warn('Database deletion blocked.');
+                });
+            }
+
+
+            /**
+             *
+             */
+            async function readFromDb(key) {
+                const dbs = await indexedDB.databases();
+                if (!dbs.find(db => db.name === DB_NAME)) {
+                    return;
+                }
+                const db = await openDB();
+                if (!db.objectStoreNames.contains(STORE_NAME)) {
+                    db.close();
+                    return;
+                }
+                return new Promise((resolve, reject) => {
+                    const request = db.transaction(STORE_NAME).objectStore(STORE_NAME).get(key);
+                    request.onsuccess = () => {
+                        resolve(request.result);
+                        db.close();
+                    };
+                    request.onerror = () => {
+                        reject(request.error);
+                        db.close();
+                    };
+                });
+            }
+
+            /**
+             *
+             */
+            async function writeToDb(key, value) {
+                const db = await openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    tx.objectStore(STORE_NAME).put(value, key);
+                    tx.oncomplete = () => {
+                        resolve();
+                        db.close();
+                    };
+                    tx.onerror = () => {
+                        reject(tx.error);
+                        db.close();
+                    };
+                });
+            }
+
+            // =========================================================================================================
+            // Helpers
+            // =========================================================================================================
+            /**
+             *
+             */
+            function query(selector) {
+                return document.querySelector(selector);
+            }
+
+            /**
+             *
+             */
+            function on(name, selector, handler) {
+                let elements;
+                if (selector instanceof HTMLElement) {
+                    elements = [selector];
+                } else {
+                    elements = Array.from(document.querySelectorAll(selector));
+                }
+                for (const element of elements) {
+                    element.addEventListener(name, handler);
+                }
+            }
+
+        </script>
+    </body>
+</html>

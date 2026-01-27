@@ -6,14 +6,23 @@ html, body {
 h1 {
     text-align: center;
 }
+
 img {
     min-height: 32px;
     min-width: 32px;
     max-height:256px;
     max-width: 256px;
+    border:solid 2px white;
+    outline:solid 4px white;
+    outline-offset: -4px;
+    padding:4px;
+    user-select: none;
 }
 img.unresolved {
     background:red;
+}
+img.selected {
+    outline-color:dodgerblue;
 }
 
 #reset {

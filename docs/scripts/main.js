@@ -1,6 +1,6 @@
 const HANDLES = 'handles';
+let isMiddleClick = false;
 const originalList = [];
-const resolvedList = [];
 
 /**
  * The only input we actually need is a list of absolute paths. However, there are several ways and formats for this
@@ -26,6 +26,8 @@ const main = async () => {
 
     // Method 3 (Paste)
     window.addEventListener('paste', onWindowPaste);
+    window.addEventListener('mousedown', onWindowMouseDown);
+    window.addEventListener('mouseup', onWindowMouseUp);
 
     // Method 4 (Address-bar)
     if (location.search) {
@@ -80,6 +82,11 @@ const onInputChange = (event) => {
  * Method 3 (Paste)
  */
 const onWindowPaste = (event) => {
+    if (isMiddleClick) {
+        event.preventDefault();
+        isMiddleClick = false;
+        return;
+    }
     const {clipboardData = {}} = event;
     const {files} = clipboardData;
     if (files?.length > 0) {
@@ -94,6 +101,12 @@ const onWindowPaste = (event) => {
             notify(`Invalid paste!`);
         }
     }
+};
+const onWindowMouseDown = (e) => {
+    isMiddleClick = (e.button === 1);
+};
+const onWindowMouseUp = (e) => {
+    isMiddleClick = (e.button === 1);
 };
 
 /**
@@ -137,6 +150,17 @@ const setup = async () => {
     document.getElementById('clear-upstream').addEventListener('click', async () => {
         await deleteDatabase();
         await renderTable();
+    });
+    window.addEventListener('keydown', async (event) => {
+        if (event.key.toLowerCase() === 'c') {
+            const selectedImages = document.querySelectorAll('.selected');
+            if (selectedImages.length > 0) {
+                event.preventDefault();
+                const alts = Array.from(selectedImages).map(el => el.alt);
+                await navigator.clipboard.writeText(alts.join('\n'));
+                notify(`Added ${alts.length} paths to the clipboard.`);
+            }
+        }
     });
 };
 
@@ -207,14 +231,17 @@ const renderTable = async () => {
  */
 const previewGroup = (group) => {
     const output = [];
-    for (const {file} of group) {
+    for (const {file, path} of group) {
         let img;
         if (file) {
-            img = convertFileToImgElement(file);
+            img = convertFileToImgElement(file, path);
         } else {
             img = document.createElement('img');
             img.classList.add('unresolved');
         }
+        img.draggable = false;
+        img.alt = img.title = path;
+        img.addEventListener('click', onImageClick);
         output.push(img);
     }
     return output;
@@ -223,7 +250,7 @@ const previewGroup = (group) => {
 /**
  *
  */
-const convertFileToImgElement = (file) => {
+const convertFileToImgElement = (file, path) => {
     const img = document.createElement('img');
     const url = URL.createObjectURL(file);
     img.src = url;
@@ -275,6 +302,13 @@ const notify = (text) => {
     popups.appendChild(popup);
     console.log(text);
     setTimeout(() => popups.removeChild(popup), 1000);
+};
+
+/**
+ *
+ */
+const onImageClick = (event) => {
+    event.currentTarget.classList.toggle('selected');
 };
 
 document.addEventListener('DOMContentLoaded', main);
