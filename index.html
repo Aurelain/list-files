@@ -71,22 +71,22 @@
     <body>
 
         <div id='toolbar'>
-            <button id='upstream-show'>Manage upstream</button>
-            <button id='upstream-renew-quick' disabled>Renew upstream (<span id='upstream-count'>0</span>)</button>
+            <button id='roots-show'>Manage roots (<span id='roots-count'>0</span>)</button>
+            <button id='roots-renew-quick' disabled>Renew roots (<span id='roots-failed'>0</span>)</button>
             <!--            <button id='select-all' title='Ctrl+A'>Select all</button>-->
             <!--            <button id='copy-to' title='Ctrl+D'>Duplicate</button>-->
             <!--            <button id='move-to' disabled>Move</button>-->
             <!--            <button id='delete-files' title='Ctrl+Del'>Delete</button>-->
         </div>
 
-        <dialog id='upstream-modal'>
-            <h2 class='modal-title'>Upstream</h2>
+        <dialog id='roots-modal'>
+            <h2 class='modal-title'>Roots</h2>
             <button class='close'>×</button>
 
-            <ul id='upstream-list'></ul>
+            <ul id='roots-list'></ul>
             <div class='modal-footer'>
-                <button id='upstream-add'>Add</button>
-                <button id='upstream-renew' disabled>Renew</button>
+                <button id='roots-add'>Add</button>
+                <button id='roots-renew' disabled>Renew</button>
             </div>
         </dialog>
 
@@ -97,11 +97,12 @@
             const DB_NAME = window.location.host || 'localhost';
             const STORE_NAME = 'store';
             const HANDLES = 'dirHandles';
-            const upstreamModal = query('#upstream-modal');
-            const upstreamList = query('#upstream-list');
-            const upstreamRenew = query('#upstream-renew');
-            const upstreamRenewQuick = query('#upstream-renew-quick');
-            const upstreamCount = query('#upstream-count');
+            const rootsModal = query('#roots-modal');
+            const rootsList = query('#roots-list');
+            const rootsRenew = query('#roots-renew');
+            const rootsRenewQuick = query('#roots-renew-quick');
+            const rootsCount = query('#roots-count');
+            const rootsFailed = query('#roots-failed');
 
             // =========================================================================================================
             // M A I N
@@ -111,16 +112,16 @@
              */
             async function main() {
                 // Toolbar:
-                on('click', '#upstream-show', upstreamModal.showModal.bind(upstreamModal));
+                on('click', '#roots-show', rootsModal.showModal.bind(rootsModal));
 
                 // Modals:
                 on('click', '.close', (e) => e.currentTarget.closest('dialog').close());
 
-                await populateUpstream();
-                on('click', '#upstream-add', onUpstreamAddClick);
-                on('click', upstreamRenew, onUpstreamRenewClick);
-                on('click', upstreamRenewQuick, onUpstreamRenewClick);
-                // upstreamModal.showModal();
+                await populateRoots();
+                on('click', '#roots-add', onRootsAddClick);
+                on('click', rootsRenew, onRootsRenewClick);
+                on('click', rootsRenewQuick, onRootsRenewClick);
+                // rootsModal.showModal();
             }
 
             main();
@@ -131,7 +132,7 @@
 
 
             // =========================================================================================================
-            // Upstream
+            // Roots
             // =========================================================================================================
             /**
              *
@@ -143,7 +144,7 @@
             /**
              *
              */
-            async function populateUpstream() {
+            async function populateRoots() {
                 const handles = await getHandles();
                 const markups = [];
                 let failed = 0;
@@ -153,17 +154,18 @@
                     const symbol = isGranted ? '✅️' : '';
                     markups.push(`<li><button title='Click to remove'>${handle.name}</button>${symbol}</li>`);
                 }
-                upstreamList.innerHTML = markups.join('');
-                upstreamRenew.disabled = !failed;
-                upstreamRenewQuick.disabled = !failed;
-                upstreamCount.textContent = failed.toString();
-                on('click', '#upstream-list button', onUpstreamHandleClick);
+                rootsList.innerHTML = markups.join('');
+                rootsRenew.disabled = !failed;
+                rootsRenewQuick.disabled = !failed;
+                rootsCount.textContent = handles.length.toString();
+                rootsFailed.textContent = failed.toString();
+                on('click', '#roots-list button', onRootsHandleClick);
             }
 
             /**
              *
              */
-            async function onUpstreamAddClick() {
+            async function onRootsAddClick() {
                 let dirHandle;
                 try {
                     dirHandle = await window.showDirectoryPicker({mode: 'readwrite'});
@@ -173,31 +175,31 @@
                     const handles = await getHandles();
                     handles.push(dirHandle);
                     await writeToDb(HANDLES, handles);
-                    await populateUpstream();
+                    await populateRoots();
                 }
             }
 
             /**
              *
              */
-            async function onUpstreamRenewClick() {
+            async function onRootsRenewClick() {
                 const handles = await getHandles();
                 for (const handle of handles) {
                     await handle.requestPermission();
                 }
-                await populateUpstream();
+                await populateRoots();
             }
 
             /**
              *
              */
-            async function onUpstreamHandleClick(event) {
-                const allHandleButtons = Array.from(upstreamList.querySelectorAll('button'));
+            async function onRootsHandleClick(event) {
+                const allHandleButtons = Array.from(rootsList.querySelectorAll('button'));
                 const index = allHandleButtons.indexOf(event.currentTarget);
                 const handles = await getHandles();
                 handles.splice(index, 1);
                 await writeToDb(HANDLES, handles);
-                await populateUpstream();
+                await populateRoots();
             }
 
             // =========================================================================================================
