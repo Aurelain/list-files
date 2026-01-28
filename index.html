@@ -10,11 +10,13 @@
             html, body {
                 margin: 0;
                 font-family: sans-serif;
+                cursor:default;
             }
 
             button {
                 user-select: none;
                 cursor: pointer;
+                outline: none;
             }
 
             button[disabled] {
@@ -22,13 +24,15 @@
             }
 
             dialog {
-                border-width: thin;
+                border-width: 1px;
                 padding: 24px;
                 min-width: 320px;
             }
 
             li {
                 margin-block: 4px;
+                list-style-type: none;
+                user-select: none;
             }
 
             .close {
@@ -54,9 +58,8 @@
                 position: fixed;
                 inset: 0;
                 bottom: auto;
-                background: silver;
+                background:saddlebrown;
                 padding: 4px;
-                border-bottom: solid 1px gray;
             }
 
             .modal-title {
@@ -66,13 +69,17 @@
             .modal-footer {
                 text-align: right;
             }
+
+            /*noinspection CssUnusedSymbol*/
+            .hidden {
+                display: none !important;
+            }
         </style>
     </head>
     <body>
 
         <div id='toolbar'>
-            <button id='roots-show'>Manage roots (<span id='roots-count'>0</span>)</button>
-            <button id='roots-renew-quick' disabled>Renew roots (<span id='roots-failed'>0</span>)</button>
+            <button id='roots-show'>Roots <span id='roots-warning'>⚠️</span></button>
             <!--            <button id='select-all' title='Ctrl+A'>Select all</button>-->
             <!--            <button id='copy-to' title='Ctrl+D'>Duplicate</button>-->
             <!--            <button id='move-to' disabled>Move</button>-->
@@ -96,13 +103,11 @@
             // =========================================================================================================
             const DB_NAME = window.location.host || 'localhost';
             const STORE_NAME = 'store';
-            const HANDLES = 'dirHandles';
+            const ROOTS = 'roots';
             const rootsModal = query('#roots-modal');
             const rootsList = query('#roots-list');
             const rootsRenew = query('#roots-renew');
-            const rootsRenewQuick = query('#roots-renew-quick');
-            const rootsCount = query('#roots-count');
-            const rootsFailed = query('#roots-failed');
+            const rootsWarning = query('#roots-warning');
 
             // =========================================================================================================
             // M A I N
@@ -113,14 +118,15 @@
             async function main() {
                 // Toolbar:
                 on('click', '#roots-show', rootsModal.showModal.bind(rootsModal));
+                on('contextmenu', '#roots-show', onRootsRenewClick);
 
                 // Modals:
                 on('click', '.close', (e) => e.currentTarget.closest('dialog').close());
 
-                await populateRoots();
+                // Roots:
                 on('click', '#roots-add', onRootsAddClick);
                 on('click', rootsRenew, onRootsRenewClick);
-                on('click', rootsRenewQuick, onRootsRenewClick);
+                await populateRoots();
                 // rootsModal.showModal();
             }
 
@@ -137,28 +143,27 @@
             /**
              *
              */
-            async function getHandles() {
-                return await readFromDb(HANDLES) || [];
+            async function getRoots() {
+                return await readFromDb(ROOTS) || [];
             }
 
             /**
              *
              */
             async function populateRoots() {
-                const handles = await getHandles();
+                const roots = await getRoots();
                 const markups = [];
                 let failed = 0;
-                for (const handle of handles) {
+                for (const {handle} of roots) {
+                    // noinspection JSUnresolvedReference
                     const isGranted = await handle.queryPermission() === 'granted';
                     failed += isGranted ? 0 : 1;
-                    const symbol = isGranted ? '✅️' : '';
-                    markups.push(`<li><button title='Click to remove'>${handle.name}</button>${symbol}</li>`);
+                    const symbol = isGranted ? '✅️' : '⚠️';
+                    markups.push(`<li>${symbol} <button title='Click to remove'>${handle.name}</button></li>`);
                 }
                 rootsList.innerHTML = markups.join('');
                 rootsRenew.disabled = !failed;
-                rootsRenewQuick.disabled = !failed;
-                rootsCount.textContent = handles.length.toString();
-                rootsFailed.textContent = failed.toString();
+                hide(rootsWarning, roots.length && !failed);
                 on('click', '#roots-list button', onRootsHandleClick);
             }
 
@@ -168,13 +173,16 @@
             async function onRootsAddClick() {
                 let dirHandle;
                 try {
+                    // noinspection JSUnresolvedReference
                     dirHandle = await window.showDirectoryPicker({mode: 'readwrite'});
                 } catch (e) {
                 }
                 if (dirHandle) {
-                    const handles = await getHandles();
-                    handles.push(dirHandle);
-                    await writeToDb(HANDLES, handles);
+                    const roots = await getRoots();
+                    roots.push({
+                        handle: dirHandle,
+                    });
+                    await writeToDb(ROOTS, roots);
                     await populateRoots();
                 }
             }
@@ -182,9 +190,10 @@
             /**
              *
              */
-            async function onRootsRenewClick() {
-                const handles = await getHandles();
-                for (const handle of handles) {
+            async function onRootsRenewClick(event) {
+                event.preventDefault(); // for context menu
+                const roots = await getRoots();
+                for (const {handle} of roots) {
                     await handle.requestPermission();
                 }
                 await populateRoots();
@@ -196,9 +205,9 @@
             async function onRootsHandleClick(event) {
                 const allHandleButtons = Array.from(rootsList.querySelectorAll('button'));
                 const index = allHandleButtons.indexOf(event.currentTarget);
-                const handles = await getHandles();
-                handles.splice(index, 1);
-                await writeToDb(HANDLES, handles);
+                const roots = await getRoots();
+                roots.splice(index, 1);
+                await writeToDb(ROOTS, roots);
                 await populateRoots();
             }
 
@@ -291,18 +300,32 @@
             /**
              *
              */
-            function on(name, selector, handler) {
-                let elements;
+            function queryAll(selector) {
                 if (selector instanceof HTMLElement) {
-                    elements = [selector];
+                    return [selector];
                 } else {
-                    elements = Array.from(document.querySelectorAll(selector));
+                    return Array.from(document.querySelectorAll(selector));
                 }
-                for (const element of elements) {
+            }
+
+            /**
+             *
+             */
+            function on(name, selector, handler) {
+                for (const element of queryAll(selector)) {
                     element.addEventListener(name, handler);
                 }
             }
 
+            /**
+             *
+             */
+            function hide(selector, force) {
+                const value = force === undefined ? true : Boolean(force);
+                for (const element of queryAll(selector)) {
+                    element.classList.toggle('hidden', value);
+                }
+            }
         </script>
     </body>
 </html>
