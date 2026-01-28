@@ -9,8 +9,8 @@
         <style>
             html, body {
                 margin: 0;
-                font-family: "JetBrains Mono", monospace;
-                font-size: 13pt;
+                font-family: sans-serif;
+                font-size: 14px;
                 cursor: default;
                 image-rendering: pixelated;
             }
@@ -29,6 +29,7 @@
                 padding: 2px 4px;
                 margin: 0 2px;
                 font-size: inherit;
+                border-radius: 4px;
             }
 
             button:hover {
@@ -86,6 +87,74 @@
                 background: #000;
             }
 
+            #file-list {
+                padding-top: 48px;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+
+            tr {
+                border-bottom: 1px solid #ccc;
+            }
+
+            td {
+                padding: 4px 0 8px 0;
+            }
+
+            .wrapper {
+                cursor: pointer;
+                padding: 4px;
+                margin-left: -1px;
+            }
+
+            .wrapper:hover {
+                background: rgba(31, 158, 222, 0.5);
+            }
+
+            .wrapper-image {
+                display: inline-block;
+                padding: 1px 1px 4px 1px;
+            }
+
+            img {
+                min-height: 32px;
+                min-width: 32px;
+                max-height: 256px;
+                max-width: 256px;
+                user-select: none;
+            }
+
+            .selected {
+                background: #1f9ede;
+                color: #fff;
+                position: relative;
+            }
+
+            .selected:hover {
+                background: #0870a5;
+            }
+
+            .wrapper:active, .selected:active {
+                color: #fff;
+                background: #000;
+            }
+
+            .selected::before {
+                content: "☑️";
+                position: absolute;
+                right: 4px;
+                top: 4px;
+                font-size: 18px;
+                width: 24px;
+                height: 24px;
+                background: white;
+                text-align: center;
+                line-height: 24px;
+            }
+
             #toolbar {
                 position: fixed;
                 inset: 0;
@@ -93,6 +162,12 @@
                 background: saddlebrown;
                 padding: 4px 2px;
                 display: flex;
+                color: white;
+            }
+
+            #file-count {
+                margin: 0 2px;
+                line-height: 24px;
             }
 
             .modal-title {
@@ -110,8 +185,8 @@
             }
 
             #input-filters {
-                border:0;
-                padding:1px;
+                border: 0;
+                padding: 1px 4px;
                 flex-grow: 1;
                 margin: 0 2px;
                 outline-offset: 2px;
@@ -120,7 +195,7 @@
 
             /*noinspection CssUnusedSymbol*/
             #input-filters.invalid {
-                background:pink;
+                background: pink;
             }
 
             /*noinspection CssUnusedSymbol*/
@@ -134,6 +209,7 @@
         <div id='toolbar'>
             <button id='roots-show'>Roots <span id='roots-warning'>⚠️</span></button>
             <input id='input-filters' type='text' title='Filters' spellcheck='false' autocomplete='off'>
+            <div id='file-count'>Selected: <span id='selected-count'>0</span>/<span id='total-count'>0</span></div>
             <button id='select-all' disabled>Select all</button>
             <button id='duplicate-files' disabled>Duplicate</button>
             <button id='move-files' disabled>Move</button>
@@ -151,6 +227,8 @@
             </div>
         </dialog>
 
+        <div id='file-list'></div>
+
         <script>
             // =========================================================================================================
             // D E C L A R A T I O N S
@@ -163,6 +241,9 @@
             const rootsRenew = query('#roots-renew');
             const rootsWarning = query('#roots-warning');
             const inputFilters = query('#input-filters');
+            const fileList = query('#file-list');
+            const selectedCount = query('#selected-count');
+            const totalCount = query('#total-count');
             let ast; // abstract-syntax-tree
 
             // =========================================================================================================
@@ -205,8 +286,10 @@
              */
             async function render() {
                 const ast = buildAst(inputFilters.value);
-                const results = await findFiles(ast);
-                console.log('results:', results);
+                const list = await findFiles(ast);
+                const sorted = sortNaturally(list);
+                const grouped = groupByStem(sorted);
+                populateFileList(grouped);
             }
 
             /**
@@ -260,6 +343,108 @@
                 }
                 return entries;
             }
+
+            /**
+             *
+             */
+            function groupByStem(list) {
+                const map = {};
+                const output = [];
+                for (const item of list) {
+                    const stem = item.path.split('/').pop().replace(/\.[^.]*$/, '');
+                    if (!map[stem]) {
+                        map[stem] = [];
+                        output.push(map[stem]);
+                    }
+                    map[stem].push(item);
+                }
+                return output;
+            }
+
+            /**
+             *
+             */
+            function populateFileList(groups) {
+                if (!groups.length) {
+                    fileList.innerHTML = '&nbsp;No results.';
+                    totalCount.innerHTML = '0';
+                    return;
+                }
+                fileList.innerHTML = '';
+                const table = document.createElement('table');
+                const tableBody = document.createElement('tbody');
+                table.appendChild(tableBody);
+                let count = 0;
+                for (const group of groups) {
+                    const [first] = group;
+                    const {path} = first;
+                    count += group.length;
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+
+                    const wrapper = buildWrapper(path);
+                    wrapper.innerHTML = path;
+                    td.appendChild(wrapper);
+
+                    if (first.path.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
+                        td.appendChild(buildGroup(group));
+                    }
+
+                    tr.appendChild(td);
+                    tableBody.appendChild(tr);
+                }
+                fileList.appendChild(table);
+                totalCount.innerHTML = count.toString();
+            }
+
+            /**
+             *
+             */
+            function buildWrapper(path) {
+                const wrapper = document.createElement('div');
+                wrapper.title = path;
+                wrapper.classList.add('wrapper');
+                on('click', wrapper, onWrapperClick);
+                return wrapper;
+            }
+
+            /**
+             *
+             */
+            function buildGroup(group) {
+                const div = document.createElement('div');
+                for (const {file, path} of group) {
+                    const wrapper = buildWrapper(path);
+                    wrapper.classList.add('wrapper-image');
+                    const img = convertFileToImgElement(file);
+                    img.draggable = false;
+                    img.alt = path;
+                    wrapper.appendChild(img);
+                    div.appendChild(wrapper);
+                }
+                return div;
+            }
+
+            /**
+             *
+             */
+            function convertFileToImgElement(file) {
+                const img = document.createElement('img');
+                const url = URL.createObjectURL(file);
+                img.src = url;
+                img.onload = () => URL.revokeObjectURL(url); // clean up the object URL once the image is loaded
+                return img;
+            }
+
+            /**
+             *
+             */
+            function onWrapperClick(event) {
+                event.currentTarget.classList.toggle('selected');
+                const allSelected = queryAll('.selected');
+                selectedCount.innerHTML = allSelected.length.toString();
+            }
+
 
             // =========================================================================================================
             // Roots
@@ -545,6 +730,7 @@
                         throw new Error(`Unknown node type: ${node.type}`);
                 }
             }
+
             // =========================================================================================================
             // Helpers
             // =========================================================================================================
@@ -584,6 +770,19 @@
                     element.classList.toggle('hidden', value);
                 }
             }
+
+            /**
+             *
+             */
+            function sortNaturally(arr) {
+                return [...arr].sort((a, b) => {
+                    return a.path.localeCompare(b.path, undefined, {
+                        numeric: true,
+                        sensitivity: 'base'
+                    });
+                });
+            }
+
         </script>
     </body>
 </html>
