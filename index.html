@@ -6,6 +6,7 @@
         <link rel='icon' type='image/svg+xml' href="data:image/svg+xml,
             <svg xmlns='http://www.w3.org/2000/svg'><text y='24' font-size='24'>💼</text></svg>">
         <title>manage-files</title>
+        <!--suppress CssUnusedSymbol -->
         <style>
             html, body {
                 margin: 0;
@@ -13,6 +14,7 @@
                 font-size: 14px;
                 cursor: default;
                 image-rendering: pixelated;
+                user-select: none;
             }
 
             button, input {
@@ -21,7 +23,6 @@
             }
 
             button {
-                user-select: none;
                 cursor: pointer;
                 outline: none;
                 background: papayawhip;
@@ -109,6 +110,9 @@
                 padding: 4px;
                 margin-left: -1px;
             }
+            .wrapper-basic {
+                padding: 4px;
+            }
 
             .wrapper:hover {
                 background: rgba(31, 158, 222, 0.5);
@@ -193,12 +197,10 @@
                 outline-color: orange;
             }
 
-            /*noinspection CssUnusedSymbol*/
             #input-filters.invalid {
                 background: pink;
             }
 
-            /*noinspection CssUnusedSymbol*/
             .hidden {
                 display: none !important;
             }
@@ -210,7 +212,7 @@
             <button id='roots-show'>Roots <span id='roots-warning'>⚠️</span></button>
             <input id='input-filters' type='text' title='Filters' spellcheck='false' autocomplete='off'>
             <div id='file-count'>Selected: <span id='selected-count'>0</span>/<span id='total-count'>0</span></div>
-            <button id='select-all' disabled>Select all</button>
+            <button id='select-all'>Select all</button>
             <button id='duplicate-files' disabled>Duplicate</button>
             <button id='move-files' disabled>Move</button>
             <button id='delete-files' disabled>Delete</button>
@@ -244,6 +246,7 @@
             const fileList = query('#file-list');
             const selectedCount = query('#selected-count');
             const totalCount = query('#total-count');
+            const selectAll = query('#select-all');
             let ast; // abstract-syntax-tree
 
             // =========================================================================================================
@@ -256,6 +259,7 @@
                 // Toolbar:
                 on('click', '#roots-show', rootsModal.showModal.bind(rootsModal));
                 on('contextmenu', '#roots-show', onRootsRenewClick);
+                on('click', selectAll, onSelectAllClick);
 
                 // Modals:
                 on('click', '.close', (e) => e.currentTarget.closest('dialog').close());
@@ -367,6 +371,7 @@
             function populateFileList(groups) {
                 if (!groups.length) {
                     fileList.innerHTML = '&nbsp;No results.';
+                    setTotalCount(0);
                     totalCount.innerHTML = '0';
                     return;
                 }
@@ -382,11 +387,14 @@
                     const tr = document.createElement('tr');
                     const td = document.createElement('td');
 
-                    const wrapper = buildWrapper(path);
+                    const isImage = first.path.match(/jpg$|png$|jpeg$|webp$|gif$/i);
+
+                    const wrapper = isImage? document.createElement('div') : buildWrapper(path);
+                    isImage && wrapper.classList.add('wrapper-basic');
                     wrapper.innerHTML = path;
                     td.appendChild(wrapper);
 
-                    if (first.path.match(/jpg$|png$|jpeg$|webp$|gif$/i)) {
+                    if (isImage) {
                         td.appendChild(buildGroup(group));
                     }
 
@@ -395,6 +403,14 @@
                 }
                 fileList.appendChild(table);
                 totalCount.innerHTML = count.toString();
+            }
+
+            /**
+             *
+             */
+            function setTotalCount(nr) {
+                totalCount.innerHTML = nr.toString();
+                selectAll.disabled = nr === 0;
             }
 
             /**
@@ -441,6 +457,24 @@
              */
             function onWrapperClick(event) {
                 event.currentTarget.classList.toggle('selected');
+                updateSelected();
+            }
+
+            /**
+             *
+             */
+            function onSelectAllClick() {
+                const wrappers = queryAll('.wrapper');
+                const selected = queryAll('.selected');
+                const toSelected = selected.length !== wrappers.length;
+                wrappers.forEach(wrapper => wrapper.classList.toggle('selected', toSelected));
+                updateSelected();
+            }
+
+            /**
+             *
+             */
+            function updateSelected() {
                 const allSelected = queryAll('.selected');
                 selectedCount.innerHTML = allSelected.length.toString();
             }
