@@ -9,24 +9,54 @@
         <style>
             html, body {
                 margin: 0;
-                font-family: sans-serif;
-                cursor:default;
+                font-family: "JetBrains Mono", monospace;
+                font-size: 13pt;
+                cursor: default;
+                image-rendering: pixelated;
+            }
+
+            button, input {
+                font-size: inherit;
+                font-family: inherit;
             }
 
             button {
                 user-select: none;
                 cursor: pointer;
                 outline: none;
+                background: papayawhip;
+                border: 0;
+                padding: 2px 4px;
+                margin: 0 2px;
+                font-size: inherit;
+            }
+
+            button:hover {
+                background: yellow;
+            }
+
+            button:active {
+                background: orange;
             }
 
             button[disabled] {
                 cursor: default;
+                opacity: 0.5;
+                background: papayawhip;
             }
 
+            /*noinspection CssInvalidFunction*/
             dialog {
                 border-width: 1px;
-                padding: 24px;
+                padding: 24px 24px 32px 24px;
                 min-width: 320px;
+                left: round(50%, 1px);
+                top: round(50%, 1px);
+                transform: translate(
+                        round(-50%, 1px),
+                        round(-50%, 1px)
+                );
+                margin: 0;
             }
 
             li {
@@ -44,6 +74,8 @@
                 height: 24px;
                 color: white;
                 background: #f008;
+                padding: 0;
+                margin: 0;
             }
 
             .close:hover {
@@ -58,8 +90,9 @@
                 position: fixed;
                 inset: 0;
                 bottom: auto;
-                background:saddlebrown;
-                padding: 4px;
+                background: saddlebrown;
+                padding: 4px 2px;
+                display: flex;
             }
 
             .modal-title {
@@ -67,7 +100,27 @@
             }
 
             .modal-footer {
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                right: 0;
                 text-align: right;
+                background: saddlebrown;
+                padding: 4px;
+            }
+
+            #input-filters {
+                border:0;
+                padding:1px;
+                flex-grow: 1;
+                margin: 0 2px;
+                outline-offset: 2px;
+                outline-color: orange;
+            }
+
+            /*noinspection CssUnusedSymbol*/
+            #input-filters.invalid {
+                background:pink;
             }
 
             /*noinspection CssUnusedSymbol*/
@@ -80,10 +133,11 @@
 
         <div id='toolbar'>
             <button id='roots-show'>Roots <span id='roots-warning'>⚠️</span></button>
-            <!--            <button id='select-all' title='Ctrl+A'>Select all</button>-->
-            <!--            <button id='copy-to' title='Ctrl+D'>Duplicate</button>-->
-            <!--            <button id='move-to' disabled>Move</button>-->
-            <!--            <button id='delete-files' title='Ctrl+Del'>Delete</button>-->
+            <input id='input-filters' type='text' title='Filters' spellcheck='false' autocomplete='off'>
+            <button id='select-all' disabled>Select all</button>
+            <button id='duplicate-files' disabled>Duplicate</button>
+            <button id='move-files' disabled>Move</button>
+            <button id='delete-files' disabled>Delete</button>
         </div>
 
         <dialog id='roots-modal'>
@@ -108,6 +162,8 @@
             const rootsList = query('#roots-list');
             const rootsRenew = query('#roots-renew');
             const rootsWarning = query('#roots-warning');
+            const inputFilters = query('#input-filters');
+            let ast; // abstract-syntax-tree
 
             // =========================================================================================================
             // M A I N
@@ -128,14 +184,82 @@
                 on('click', rootsRenew, onRootsRenewClick);
                 await populateRoots();
                 // rootsModal.showModal();
+
+                // Filters:
+                inputFilters.value = window.location.hash.substring(1);
+                on('input', inputFilters, checkFilter);
+                on('change', inputFilters, onFiltersChange);
+                on('hashchange', window, onHashChange);
+                checkFilter();
+                await render();
+
             }
 
             main();
 
             // =========================================================================================================
-            // General
+            // Render
             // =========================================================================================================
+            /**
+             *
+             */
+            async function render() {
+                const ast = buildAst(inputFilters.value);
+                const results = await findFiles(ast);
+                console.log('results:', results);
+            }
 
+            /**
+             *
+             */
+            async function findFiles(ast) {
+                const roots = await getRoots();
+                const output = [];
+                for (const {handle} of roots) {
+                    output.push(...await findInDirectory(handle, ast));
+                }
+                return output;
+            }
+
+            /**
+             *
+             */
+            async function findInDirectory(dirHandle, ast, currentPath = '') {
+                const output = [];
+                const entries = await getFiles(dirHandle);
+                for (const [name, handle] of entries) {
+                    const fullPath = `${currentPath}/${name}`;
+                    if (!ast || evaluateNode(ast, fullPath)) {
+                        if (handle.kind === 'directory') {
+                            output.push(...await findInDirectory(handle, null, fullPath));
+                        } else {
+                            output.push({
+                                file: await handle.getFile(),
+                                path: fullPath,
+                            });
+                        }
+                    } else {
+                        if (handle.kind === 'directory') {
+                            output.push(...await findInDirectory(handle, ast, fullPath));
+                        }
+                    }
+                }
+                return output;
+            }
+
+            /**
+             *
+             */
+            async function getFiles(dirHandle) {
+                const entries = [];
+                try {
+                    for await (const entry of dirHandle.entries()) {
+                        entries.push(entry);
+                    }
+                } catch (error) {
+                }
+                return entries;
+            }
 
             // =========================================================================================================
             // Roots
@@ -209,6 +333,41 @@
                 roots.splice(index, 1);
                 await writeToDb(ROOTS, roots);
                 await populateRoots();
+            }
+
+            // =========================================================================================================
+            // Filters
+            // =========================================================================================================
+            /**
+             *
+             */
+            function checkFilter() {
+                ast = buildAst(inputFilters.value);
+                inputFilters.classList.toggle('invalid', !ast);
+            }
+
+            /**
+             *
+             */
+            function onFiltersChange(event) {
+                const {value} = event.currentTarget;
+                const hash = window.location.hash.substring(1);
+                if (value !== hash) {
+                    window.location.hash = value;
+                    render();
+                }
+            }
+
+            /**
+             *
+             */
+            function onHashChange() {
+                const hash = window.location.hash.substring(1);
+                if (hash !== inputFilters.value) {
+                    inputFilters.value = hash;
+                    checkFilter();
+                    render();
+                }
             }
 
             // =========================================================================================================
@@ -288,6 +447,105 @@
             }
 
             // =========================================================================================================
+            // Parser
+            // =========================================================================================================
+            /**
+             *
+             */
+            function buildAst(input) {
+                // Matches (, ), &, |, or sequences of other characters
+                const tokens = input.match(/\(|\)|&|\||[^()|&]+/g) || [];
+
+                const parser = new LogicalParser(tokens);
+                try {
+                    return parser.parse();
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+
+            /**
+             * AI Generated
+             */
+            class LogicalParser {
+                constructor(tokens) {
+                    this.tokens = tokens;
+                    this.pos = 0;
+                }
+
+                parse() {
+                    return this.parseOr();
+                }
+
+                // Handles '|' (lowest priority)
+                parseOr() {
+                    let node = this.parseAnd();
+                    while (this.peek() === '|') {
+                        this.consume('|');
+                        node = {type: 'OR', left: node, right: this.parseAnd()};
+                    }
+                    return node;
+                }
+
+                // Handles '&'
+                parseAnd() {
+                    let node = this.parsePrimary();
+                    while (this.peek() === '&') {
+                        this.consume('&');
+                        node = {type: 'AND', left: node, right: this.parsePrimary()};
+                    }
+                    return node;
+                }
+
+                // Handles parentheses and raw words (highest priority)
+                parsePrimary() {
+                    const token = this.consume();
+                    if (token === '(') {
+                        const node = this.parseOr();
+                        this.consume(')'); // Clean up the closing paren
+                        return node;
+                    }
+
+                    return {type: 'WORD', value: new RegExp(token)};
+                }
+
+                peek() {
+                    return this.tokens[this.pos];
+                }
+
+                consume(expected) {
+                    const token = this.tokens[this.pos++];
+
+                    // If we expected a specific character, like ')', and didn't get it:
+                    if (expected && token !== expected) {
+                        throw new Error(`Expected "${expected}"!"`);
+                    }
+
+                    return token;
+                }
+            }
+
+            /**
+             * AI Generated
+             */
+            function evaluateNode(node, targetString) {
+                switch (node.type) {
+                    case 'WORD':
+                        return node.value.test(targetString);
+
+                    case 'AND':
+                        // Both sides must be true
+                        return evaluateNode(node.left, targetString) && evaluateNode(node.right, targetString);
+
+                    case 'OR':
+                        // Only one side needs to be true
+                        return evaluateNode(node.left, targetString) || evaluateNode(node.right, targetString);
+
+                    default:
+                        throw new Error(`Unknown node type: ${node.type}`);
+                }
+            }
+            // =========================================================================================================
             // Helpers
             // =========================================================================================================
             /**
@@ -301,10 +559,10 @@
              *
              */
             function queryAll(selector) {
-                if (selector instanceof HTMLElement) {
-                    return [selector];
-                } else {
+                if (typeof selector === 'string') {
                     return Array.from(document.querySelectorAll(selector));
+                } else {
+                    return [selector];
                 }
             }
 
