@@ -14,7 +14,12 @@
                 font-size: 14px;
                 cursor: default;
                 image-rendering: pixelated;
+            }
+            * {
                 user-select: none;
+            }
+            input {
+                user-select: text;
             }
 
             button, input {
@@ -50,7 +55,7 @@
             /*noinspection CssInvalidFunction*/
             dialog {
                 border-width: 1px;
-                padding: 24px 24px 32px 24px;
+                padding: 24px 24px 48px 24px;
                 min-width: 320px;
                 left: round(50%, 1px);
                 top: round(50%, 1px);
@@ -67,7 +72,7 @@
                 user-select: none;
             }
 
-            .close {
+            #close {
                 position: absolute;
                 top: 0;
                 right: 0;
@@ -78,13 +83,14 @@
                 background: #f008;
                 padding: 0;
                 margin: 0;
+                border-radius: 0;
             }
 
-            .close:hover {
+            #close:hover {
                 background: #f00;
             }
 
-            .close:active {
+            #close:active {
                 background: #000;
             }
 
@@ -161,6 +167,7 @@
 
             #toolbar {
                 position: fixed;
+                z-index:1;
                 inset: 0;
                 bottom: auto;
                 background: saddlebrown;
@@ -209,23 +216,23 @@
     <body>
 
         <div id='toolbar'>
-            <button id='roots-show'>Roots <span id='roots-warning'>⚠️</span></button>
+            <button id='btn-roots'>Roots <span id='roots-warning'>⚠️</span></button>
             <input id='input-filters' type='text' title='Filters' spellcheck='false' autocomplete='off'>
             <div id='file-count'>Selected: <span id='selected-count'>0</span>/<span id='total-count'>0</span></div>
-            <button id='select-all'>Select all</button>
-            <button id='duplicate-files' disabled>Duplicate</button>
-            <button id='move-files' disabled>Move</button>
-            <button id='delete-files' disabled>Delete</button>
+            <button id='btn-select-all'>Select all</button>
+            <button id='btn-duplicate'>Duplicate</button>
+            <button id='btn-move'>Move</button>
+            <button id='btn-delete'>Delete</button>
         </div>
 
         <dialog id='roots-modal'>
             <h2 class='modal-title'>Roots</h2>
-            <button class='close'>×</button>
+            <button id='close'>×</button>
 
             <ul id='roots-list'></ul>
             <div class='modal-footer'>
                 <button id='roots-add'>Add</button>
-                <button id='roots-renew' disabled>Renew</button>
+                <button id='roots-renew'>Renew</button>
             </div>
         </dialog>
 
@@ -235,19 +242,32 @@
             // =========================================================================================================
             // D E C L A R A T I O N S
             // =========================================================================================================
+            // Constants:
             const DB_NAME = window.location.host || 'localhost';
             const STORE_NAME = 'store';
             const ROOTS = 'roots';
+
+            // Buttons:
+            const btnRoots = query('#btn-roots');
+            const btnDuplicate = query('#btn-duplicate');
+            const btnMove = query('#btn-move');
+            const btnDelete = query('#btn-delete');
+            const btnSelectAll = query('#btn-select-all');
+
+            // Roots modal:
             const rootsModal = query('#roots-modal');
             const rootsList = query('#roots-list');
-            const rootsRenew = query('#roots-renew');
             const rootsWarning = query('#roots-warning');
+
+            // Others:
             const inputFilters = query('#input-filters');
             const fileList = query('#file-list');
             const selectedCount = query('#selected-count');
             const totalCount = query('#total-count');
-            const selectAll = query('#select-all');
+
+            // Variables:
             let ast; // abstract-syntax-tree
+            let selected = [];
 
             // =========================================================================================================
             // M A I N
@@ -257,18 +277,18 @@
              */
             async function main() {
                 // Toolbar:
-                on('click', '#roots-show', rootsModal.showModal.bind(rootsModal));
-                on('contextmenu', '#roots-show', onRootsRenewClick);
-                on('click', selectAll, onSelectAllClick);
-
-                // Modals:
-                on('click', '.close', (e) => e.currentTarget.closest('dialog').close());
+                on('click', btnRoots, rootsModal.showModal.bind(rootsModal));
+                on('contextmenu', btnRoots, onRootsRenewClick);
+                on('click', btnSelectAll, onSelectAllClick);
+                on('click', btnDuplicate, onDuplicateClick);
+                on('click', btnMove, onMoveClick);
+                on('click', btnDelete, onDeleteClick);
 
                 // Roots:
+                on('click', '#close', rootsModal.close.bind(rootsModal));
                 on('click', '#roots-add', onRootsAddClick);
-                on('click', rootsRenew, onRootsRenewClick);
-                await populateRoots();
-                // rootsModal.showModal();
+                on('click', '#roots-renew', onRootsRenewClick);
+                // duplicateModal.showModal();
 
                 // Filters:
                 inputFilters.value = window.location.hash.substring(1);
@@ -276,11 +296,12 @@
                 on('change', inputFilters, onFiltersChange);
                 on('hashchange', window, onHashChange);
                 checkFilter();
-                await render();
+
+                // Roots:
+                await populateRoots();
 
             }
-
-            main();
+            window.addEventListener('load', main);
 
             // =========================================================================================================
             // Render
@@ -369,40 +390,40 @@
              *
              */
             function populateFileList(groups) {
+                let count = 0;
                 if (!groups.length) {
                     fileList.innerHTML = '&nbsp;No results.';
-                    setTotalCount(0);
-                    totalCount.innerHTML = '0';
-                    return;
-                }
-                fileList.innerHTML = '';
-                const table = document.createElement('table');
-                const tableBody = document.createElement('tbody');
-                table.appendChild(tableBody);
-                let count = 0;
-                for (const group of groups) {
-                    const [first] = group;
-                    const {path} = first;
-                    count += group.length;
-                    const tr = document.createElement('tr');
-                    const td = document.createElement('td');
+                    count = 0;
+                } else {
+                    fileList.innerHTML = '';
+                    const table = document.createElement('table');
+                    const tableBody = document.createElement('tbody');
+                    table.appendChild(tableBody);
+                    for (const group of groups) {
+                        const [first] = group;
+                        const {path} = first;
+                        count += group.length;
+                        const tr = document.createElement('tr');
+                        const td = document.createElement('td');
 
-                    const isImage = first.path.match(/jpg$|png$|jpeg$|webp$|gif$/i);
+                        const isImage = first.path.match(/jpg$|png$|jpeg$|webp$|gif$/i);
 
-                    const wrapper = isImage? document.createElement('div') : buildWrapper(path);
-                    isImage && wrapper.classList.add('wrapper-basic');
-                    wrapper.innerHTML = path;
-                    td.appendChild(wrapper);
+                        const wrapper = isImage? document.createElement('div') : buildWrapper(path);
+                        isImage && wrapper.classList.add('wrapper-basic');
+                        wrapper.innerHTML = path;
+                        td.appendChild(wrapper);
 
-                    if (isImage) {
-                        td.appendChild(buildGroup(group));
+                        if (isImage) {
+                            td.appendChild(buildGroup(group));
+                        }
+
+                        tr.appendChild(td);
+                        tableBody.appendChild(tr);
                     }
-
-                    tr.appendChild(td);
-                    tableBody.appendChild(tr);
+                    fileList.appendChild(table);
                 }
-                fileList.appendChild(table);
-                totalCount.innerHTML = count.toString();
+                setTotalCount(count);
+                updateSelected();
             }
 
             /**
@@ -410,7 +431,7 @@
              */
             function setTotalCount(nr) {
                 totalCount.innerHTML = nr.toString();
-                selectAll.disabled = nr === 0;
+                btnSelectAll.disabled = nr === 0;
             }
 
             /**
@@ -465,7 +486,6 @@
              */
             function onSelectAllClick() {
                 const wrappers = queryAll('.wrapper');
-                const selected = queryAll('.selected');
                 const toSelected = selected.length !== wrappers.length;
                 wrappers.forEach(wrapper => wrapper.classList.toggle('selected', toSelected));
                 updateSelected();
@@ -475,8 +495,12 @@
              *
              */
             function updateSelected() {
-                const allSelected = queryAll('.selected');
-                selectedCount.innerHTML = allSelected.length.toString();
+                selected = queryAll('.selected');
+                selectedCount.innerHTML = selected.length.toString();
+                const noSelection = !selected.length;
+                btnDuplicate.disabled = noSelection;
+                btnMove.disabled = noSelection;
+                btnDelete.disabled = noSelection;
             }
 
 
@@ -505,9 +529,9 @@
                     markups.push(`<li>${symbol} <button title='Click to remove'>${handle.name}</button></li>`);
                 }
                 rootsList.innerHTML = markups.join('');
-                rootsRenew.disabled = !failed;
                 hide(rootsWarning, roots.length && !failed);
                 on('click', '#roots-list button', onRootsHandleClick);
+                await render();
             }
 
             /**
@@ -552,6 +576,38 @@
                 roots.splice(index, 1);
                 await writeToDb(ROOTS, roots);
                 await populateRoots();
+            }
+
+            // =========================================================================================================
+            // File operations
+            // =========================================================================================================
+            /**
+             *
+             */
+            function onDuplicateClick(){
+                const response = prompt(`You are about to duplicate ${selected.length} files.\nWhere to?`);
+                if (response) {
+                    console.log(response);
+                }
+            }
+
+            /**
+             *
+             */
+            function onMoveClick(){
+                const response = prompt(`You are about to move ${selected.length} files.\nWhere to?`);
+                if (response) {
+                    console.log(response);
+                }
+            }
+
+            /**
+             *
+             */
+            function onDeleteClick(){
+                if (confirm(`Are you sure you want to DELETE ${selected.length} files?`)) {
+                    console.log('ok');
+                }
             }
 
             // =========================================================================================================
